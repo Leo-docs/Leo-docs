@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configurações de Automação</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    .info-icon {
+      display: inline-block;
+      background-color: #007bff;
+      color: white;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 14px;
+      text-align: center;
+      margin-left: 5px;
+      cursor: pointer;
+    }
+    .loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7); /* Fundo escuro com 20% de opacidade */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      z-index: 9999;
+      color: white;
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+
+<body class="container py-4">
+  <div class="loading-screen" id="loadingScreen">Carregando...</div>
+  <h4 class="mb-3">Automação</h4>
+  <div class="form-check mb-3" data-bs-toggle="tooltip" title="Criar documento automaticamente ao alterar planilha. Necessário adicionar um Acionador!">
+    <input class="form-check-input" type="checkbox" id="rodarScriptAutomatico" <?= CONFIG.RODAR_SCRIPT_AUTOMATICO ? "checked" : "" ?>>
+    <label class="form-check-label" for="rodarScriptAutomatico">Criar Documentos Automaticamente?</label>
+  </div>
+
+  <div class="form-check mb-3" data-bs-toggle="tooltip" title="Enviar documento criado automaticamente para o Email informado.">
+    <input class="form-check-input" type="checkbox" id="enviarEmail" <?= CONFIG.ENVIAR_EMAIL_AUTOMATICO ? "checked" : "" ?> onchange="toggleCamposEmail()">
+    <label class="form-check-label" for="enviarEmail">Enviar Email ao Criar Documento?</label>
+  </div>
+
+  <hr>
+
+  <h4>Pasta e Documento</h4>
+  <div class="mb-3">
+    <label for="pastaRaiz" class="form-label" data-bs-toggle="tooltip" title="Insira o ID ou link da pasta onde os documentos serão salvos.">
+      Pasta de armazenamento 
+      <span class="info-icon">?</span>
+    </label>
+    <input type="text" class="form-control" id="pastaRaiz" value="<?= CONFIG.ID_PASTA_RAIZ || '' ?>" placeholder="Insira o ID ou link da pasta de armazenamento.">
+  </div>
+
+  <div class="mb-3">
+    <label for="documentoModelo" class="form-label" data-bs-toggle="tooltip" title="Insira o ID ou link do documento modelo usado para gerar os documentos.">
+      Modelo de Documento 
+      <span class="info-icon">?</span>
+    </label>
+    <input type="text" class="form-control" id="documentoModelo" value="<?= CONFIG.ID_DOCUMENTO_MODELO || '' ?>" placeholder="Insira o ID ou link do modelo de documento">
+  </div>
+
+  <div class="mb-3">
+    <label for="colunaSelecionada" class="form-label" data-bs-toggle="tooltip" title="Selecione a coluna que será utilizada para salvar o nome do arquivo.">
+      Nome do Arquivo
+      <span class="info-icon" >?</span>
+    </label>
+    <select class="form-select campoCabecalho" id="colunaSelecionada">
+      <option value="">Carregando...</option>
+    </select>
+  </div>
+
+  <div class="mb-3 toggleEmail" style="<?= CONFIG.ENVIAR_EMAIL_AUTOMATICO ? 'display: block;' : 'display: none;' ?>">
+    <label for="colunaEmail" class="form-label" data-bs-toggle="tooltip" title="Selecione a coluna onde o e-mail do destinatário está localizado.">
+      Email do Destinatário
+      <span class="info-icon" >?</span>
+    </label>
+    <select class="form-select campoCabecalho" id="colunaEmail">
+      <option value="">Carregando...</option>
+    </select>
+  </div>
+
+  <hr>
+
+  <button class="btn btn-success mb-3" onclick="salvarConfiguracoes()">Salvar Configurações</button>
+  <button class="btn btn-danger" onclick="resetarConfiguracoes()">Excluir Configurações</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    function extrairId(url) {
+      const regex = /[-\w]{25,}/;
+      const match = url.match(regex);
+      return match ? match[0] : url;
+    }
+
+    function carregarCabecalhos() {
+      google.script.run.withSuccessHandler((dados) => {
+        if (!dados || !Array.isArray(dados) || dados.length === 0) {
+          document.querySelectorAll('.campoCabecalho').forEach(select => {
+            select.innerHTML = "<option value=''>Nenhum cabeçalho encontrado</option>";
+          });
+          document.getElementById("loadingScreen").classList.add("hidden");
+          return;
+        }
+        let optionsHTML = "<option value=''>Selecione um cabeçalho</option>";
+        dados.forEach(cabecalho => {
+          optionsHTML += `<option value="${cabecalho}">${cabecalho}</option>`;
+        });
+        document.querySelectorAll('.campoCabecalho').forEach(select => {
+          select.innerHTML = optionsHTML;
+          if (select.id === "colunaSelecionada") {
+            select.value = "<?= CONFIG.VARIAVEL_NOME?>";
+          } else if (select.id === "colunaEmail") {
+            select.value = "<?= CONFIG.VARIAVEL_EMAIL ?>";
+          }
+          if (!select.value) select.value = "";
+        });
+        document.getElementById("loadingScreen").classList.add("hidden");
+      }).withFailureHandler((erro) => {
+        console.error("Erro no Apps Script:", erro);
+        document.getElementById("loadingScreen").classList.add("hidden");
+        alert("Ocorreu um erro ao carregar as opções. Verifique se há cabeçalhos existentes na planilha.");
+      }).obterCabecalhos();
+    }
+
+    function salvarConfiguracoes() {
+      const pastaRaiz = document.getElementById("pastaRaiz").value.trim();
+      const documentoModelo = document.getElementById("documentoModelo").value.trim();
+      const colunaSelecionada = document.getElementById("colunaSelecionada").value.trim();
+      /*if (!pastaRaiz || !documentoModelo || !colunaSelecionada) {
+        alert("Preencha todos os campos obrigatórios: Pasta de armazenamento, Modelo de Documento e Nome do Arquivo.");
+        return;
+      }*/
+      document.getElementById("loadingScreen").textContent = "Salvando...";
+      document.getElementById("loadingScreen").classList.remove("hidden");
+      const configuracoes = {
+        ID_PASTA_RAIZ: extrairId(pastaRaiz),
+        ID_DOCUMENTO_MODELO: extrairId(documentoModelo),
+        RODAR_SCRIPT_AUTOMATICO: document.getElementById("rodarScriptAutomatico").checked,
+        ENVIAR_EMAIL_AUTOMATICO: document.getElementById("enviarEmail").checked,
+        VARIAVEL_NOME: colunaSelecionada,
+        VARIAVEL_EMAIL: document.getElementById("colunaEmail").value.trim(),
+      };
+      google.script.run
+        .withSuccessHandler(() => google.script.host.close())
+        .salvarConfiguracoes(configuracoes);
+    }
+
+    function resetarConfiguracoes() {
+      if (confirm("Tem certeza que deseja excluir todas as configurações?")) {
+        document.getElementById("loadingScreen").textContent = "Deletando...";
+        document.getElementById("loadingScreen").classList.remove("hidden");
+        google.script.run
+          .withSuccessHandler(() => google.script.host.close())
+          .resetarConfiguracoes();
+      }
+    }
+
+    function toggleCamposEmail() {
+      console.log("toggleCamposEmail");
+      const enviarEmail = document.getElementById("enviarEmail").checked;
+      const camposEmail = document.querySelectorAll(".toggleEmail");
+
+      camposEmail.forEach(div => {
+        div.style.display = enviarEmail ? "block" : "none";
+      });
+      console.log("toggleCamposEmail terminado");
+    }
+
+    //document.addEventListener("DOMContentLoaded", () => {
+    window.addEventListener("load", () => {
+      console.log("addEventListener");
+      carregarCabecalhos();
+      new bootstrap.Tooltip(document.body, { selector: '[data-bs-toggle="tooltip"]' });
+      console.log("addEventListener terminado");
+    });
+  </script>
+</body>
+
+</html>
