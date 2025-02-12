@@ -1,0 +1,5 @@
+# Ignorar arquivos desnecessários
+**/*.md
+**/node_modules/**
+**/.git/**
+**/**

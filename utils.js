@@ -1,28 +1,24 @@
-
 function alert(msg) {
   if (typeof msg === "object") {
     try {
-      msg = JSON.stringify(msg, null, 2); 
+      msg = JSON.stringify(msg, null, 2);
     } catch (e) {
       msg = String(msg);
     }
   }
-  SpreadsheetApp.getUi().alert(String(msg)); 
+  SpreadsheetApp.getUi().alert(String(msg));
 }
 
 function validarPasta(idPasta) {
-  Logger.log("Validando ou corrigindo pasta. ID: " + idPasta);
-
   try {
+    Logger.log("Validando ou corrigindo pasta. ID: " + idPasta);
     if (!idPasta) throw new Error("Pasta não configurada.");
     const pasta = DriveApp.getFolderById(idPasta);
     if (!pasta) throw new Error("Pasta não encontrada.");
     Logger.log("Pasta validada com sucesso.");
-    return{idPasta, mensagemError: "" };
   } catch (e) {
-    let mensagemPasta = `[AVISO] ${e.message}.`;
-    Logger.log(mensagemPasta);
-    return { idPasta: null, mensagemPasta };
+    Logger.log(`[AVISO] ${e.message}.`);
+    throw e;
   }
 }
 
@@ -35,14 +31,33 @@ function hoje() {
 }
 
 function obterOuCriarPasta(pastaPai, nomePasta) {
-  const { idPasta, mensagemPasta } = validarIdPasta(pastaPai);
-  if(idPasta)
-    throw new Error(mensagemPasta);
+  Logger.log(`Starting folder retrieval/creation: ${nomePasta}`);
+
+  // Validate the parent folder ID
+  try {
+    validarPasta(pastaPai);
+  } catch (e) {
+    Logger.log(`Error validating parent folder: ${e.mesage}`);
+    throw e;
+  }
+
+  // Convert the folder ID into a DriveApp Folder object if needed
   if (typeof pastaPai === "string") {
+    Logger.log(`Converting folder ID to a Folder object.`);
     pastaPai = DriveApp.getFolderById(pastaPai);
   }
+
+  Logger.log(`Checking if folder '${nomePasta}' already exists inside '${pastaPai.getName()}'`);
   const pastas = pastaPai.getFoldersByName(nomePasta);
-  return pastas.hasNext() ? pastas.next() : pastaPai.createFolder(nomePasta);
+
+  // If the folder exists, return it; otherwise, create a new one
+  if (pastas.hasNext()) {
+    Logger.log(`Folder '${nomePasta}' found. Returning existing folder.`);
+    return pastas.next();
+  } else {
+    Logger.log(`Folder '${nomePasta}' not found. Creating a new folder.`);
+    return pastaPai.createFolder(nomePasta);
+  }
 }
 
 function atualizarCheckbox(linha, colunaCheckbox, planilha) {
@@ -55,7 +70,7 @@ function atualizarCheckbox(linha, colunaCheckbox, planilha) {
     Logger.log(`Checkbox atualizado na linha ${linha}, coluna ${colunaCheckbox}`);
   } catch (erro) {
     erro.funcao = `atualizarCheckbox / ${erro.funcao || ""}`;
-    erro.dadosAdicionais ={Linha: linha, Coluna :colunaCheckbox};
+    erro.dadosAdicionais = { Linha: linha, Coluna: colunaCheckbox };
     Logger.log("Erro ao atualizar checkbox: " + JSON.stringify(erro));
     throw erro;
   }
@@ -63,22 +78,20 @@ function atualizarCheckbox(linha, colunaCheckbox, planilha) {
 
 function extrairIdUrl(url) {
   if (!url) return null; // Verifica se a URL está vazia
-  
   const match = url.match(/\/d\/([-a-zA-Z0-9_]+)/);
-  
   return match ? match[1] : null; // Retorna o ID se encontrado, ou null
 }
 
 function obterCabecalhos(planilha, incluirGerados = false) {
   try {
-    if (!planilha) 
+    if (!planilha)
       planilha = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    
+
     if (planilha.getLastRow() < 1 || planilha.getLastColumn() < 1) {
       Logger.log("A planilha está vazia ou não contém cabeçalhos.");
       return [];
     }
-    
+
     let cabecalhos = planilha.getRange(1, 1, 1, planilha.getLastColumn()).getValues()[0];
 
     if (!incluirGerados) {
@@ -92,53 +105,41 @@ function obterCabecalhos(planilha, incluirGerados = false) {
 
     Logger.log("Cabeçalhos obtidos: " + JSON.stringify(cabecalhos));
     return cabecalhos;
-  }catch(erro){
+  } catch (erro) {
     erro.funcao = `obterCabecalhos / ${erro.funcao || ""}`;
-    erro.dadosAdicionais ={planilha};
+    erro.dadosAdicionais = { planilha };
     throw erro;
   }
 }
 
-function carregarMapeamento() {
-  return CONFIG.MAPEAMENTO_VARIAVEIS;
-}
-
-function substituirVariaveisMensagem(mensagem) {
+function substituirVariaveisMensagem(mesage, planilha, valoresDaLinha) {
   try {
-    Logger.log("Substituindo variáveis na mensagem.");
     // Carrega o mapeamento das variáveis configuradas
     const mapeamento = carregarMapeamento();
-
+    const cabecalhoColunas = obterCabecalhos(planilha);
     // Percorre o mapeamento e substitui as variáveis na mensagem
-    Object.keys(mapeamento).forEach(variavel => {
-      // Se a variável tiver uma coluna mapeada, substituímos no texto
-      if (mapeamento[variavel] && mapeamento[variavel].coluna) {
-        // Substitui as variáveis no formato {{variavel}} pela coluna mapeada
-        const regex = new RegExp(`{{${variavel}}}`, 'g');
-        mensagem = mensagem.replace(regex, mapeamento[variavel].coluna);
+    Object.keys(mapeamento).forEach(variable => {
+      Logger.log('substituir variavel\n'+JSON.stringify(variable));
+      let colunaAssociada = mapeamento[variable]?.coluna;
+      if (!colunaAssociada) return;
+      
+      let index = cabecalhoColunas.indexOf(colunaAssociada);
+      if (index === -1) return; // Se a coluna não for encontrada, pula a variável
+
+      // If variable have maped colun, change on mesage
+      if (mapeamento[variable].coluna) {
+        // Change variable on format {{variable}} to map colun
+        const regex = new RegExp(`{{${variable}}}`, 'g');
+
+        mesage = mesage.replace(regex, valoresDaLinha[index]);
       }
     });
 
-    Logger.log("Mensagem após substituição: " + mensagem);
-    return mensagem;
+    Logger.log("Mensagem após substituição: " + mesage);
+    return mesage;
   } catch (erro) {
     erro.funcao = `substituirVariaveisMensagem / ${erro.funcao || ""}`;
-    erro.dadosAdicionais={Mensagem:mensagem};
+    erro.dadosAdicionais = { Mensagem: mesage };
     throw erro;
-  }
-}
-function logFunction(func, ...args) {
-  const nomeFuncao = func.name;  // Obtém o nome da função
-  Logger.log(`Iniciando a execução de: ${nomeFuncao}`);
-
-  try {
-    // Executa a função e passa os parâmetros
-    const resultado = func(...args);
-    Logger.log(`Função ${nomeFuncao} concluída com sucesso.`);
-    return resultado;
-  } catch (erro) {
-    Logger.log(`Erro na função ${nomeFuncao}: ${erro.message}`);
-    Utils.registrarErro(erro);  // Chama a função de registrar erro caso ocorra uma falha
-    throw erro;  // Repassa o erro para ser tratado em outro lugar
   }
 }

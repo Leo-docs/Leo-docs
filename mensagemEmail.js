@@ -2,11 +2,9 @@
 function abrirModalMensagemEmail() {
   const propriedades = PropertiesService.getDocumentProperties();
   const mensagemSalva = propriedades.getProperty("MENSAGEM_EMAIL") || CONFIG.MENSAGEM_EMAIL;
-  
-  // Obtém as variáveis já mapeadas
-  const variaveis = Object.keys(carregarMapeamento());
-  if (!variaveis.includes("link do documento")) variaveis.unshift("link do documento"); // Garante que {{link do documento}} sempre estará disponível
 
+  const variaveis = Object.keys(carregarMapeamento());
+  if (!variaveis.includes("link do documento")) variaveis.unshift("link do documento");
   let html = `
   <html>
   <head>
@@ -78,5 +76,5 @@ function abrirModalMensagemEmail() {
 // Função para salvar a mensagem personalizada no PropertiesService
 function salvarMensagemEmail(mensagem) {
   const propriedades = PropertiesService.getDocumentProperties();
-  propriedades.setProperty("MENSAGEM_EMAIL", mensagem);  
+  propriedades.setProperty("MENSAGEM_EMAIL", mensagem);
 }

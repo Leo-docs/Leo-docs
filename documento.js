@@ -1,32 +1,36 @@
+
+function carregarMapeamento() {
+  return JSON.parse(CONFIG.MAPEAMENTO_VARIAVEIS || "{}");
+}
 const DocumentoProcessor = (() => {
   function criarDocumentosParaLinha(linha, planilha) {
-    try{
+    try {
       if (linha < 2) throw new Error("Índice de linha inválido.");
-      let cabecalhoColunas = obterCabecalhos(planilha,true);
+      let cabecalhoColunas = obterCabecalhos(planilha, true);
       let valoresDaLinha = planilha.getRange(linha, 1, 1, planilha.getLastColumn()).getValues()[0];
-      
+
       let nome = valoresDaLinha[cabecalhoColunas.indexOf(CONFIG.VARIAVEL_NOME)];
       if (!nome) throw new Error(`"Nome do Arquivo" não encontrado. Verifique a configuração.`);
 
       // Localiza as colunas necessárias e verifica se existem
-      const checkboxDocumentoCriado = localizarColuna(cabecalhoColunas, CONFIG.COLUNA_CHECKBOX_DOCUMENTO_CRIADO,true);
-      const colunaAbrirDocumento = localizarColuna(cabecalhoColunas, CONFIG.COLUNA_ABRIR_DOCUMENTO,true);
+      const checkboxDocumentoCriado = localizarColuna(cabecalhoColunas, CONFIG.COLUNA_CHECKBOX_DOCUMENTO_CRIADO, true);
+      const colunaAbrirDocumento = localizarColuna(cabecalhoColunas, CONFIG.COLUNA_ABRIR_DOCUMENTO, true);
       const colunaEmailEnviado = localizarColuna(cabecalhoColunas, CONFIG.COLUNA_CHECKBOX_EMAIL_ENVIADO);
-    
-      let idDocumento;     
+
+      let idDocumento;
       if (!planilha.getRange(linha, checkboxDocumentoCriado).getValue()) {
         // Cria o documento
         idDocumento = processarLinhaDaPlanilha(cabecalhoColunas, valoresDaLinha, nome);
         atualizarCheckbox(linha, checkboxDocumentoCriado, planilha);
         preencherColunaAbrirDocumento(linha, idDocumento, planilha, colunaAbrirDocumento);
       }
-      if(CONFIG.ENVIAR_EMAIL_AUTOMATICO && !planilha.getRange(linha, colunaEmailEnviado).getValue()){
+      if (CONFIG.ENVIAR_EMAIL_AUTOMATICO && !planilha.getRange(linha, colunaEmailEnviado).getValue()) {
         let email = valoresDaLinha[cabecalhoColunas.indexOf(CONFIG.VARIAVEL_EMAIL)];
-        enviarEmail(email, nome, idDocumento, planilha, linha, colunaAbrirDocumento, colunaEmailEnviado);        
+        enviarEmail(email, nome, idDocumento, planilha, linha, colunaAbrirDocumento, colunaEmailEnviado);
       }
       SpreadsheetApp.getActiveSpreadsheet().toast(`linha ${linha} processada com sucesso!`, "Sucesso", 3);
-    } catch (erro) {  
-      erro.funcao = `criarDocumentosParaLinha / ${erro.funcao || ""}`; 
+    } catch (erro) {
+      erro.funcao = `criarDocumentosParaLinha / ${erro.funcao || ""}`;
       erro.dadosAdicionais = erro.dadosAdicionais || {};
       erro.dadosAdicionais.linha = linha;
       throw erro;
@@ -34,25 +38,27 @@ const DocumentoProcessor = (() => {
   }
 
   function preencherColunaAbrirDocumento(linha, idDocumento, planilha, colunaAbrirDocumento) {
-    try{
+    try {
       if (colunaAbrirDocumento > 0) {
         let url = `https://docs.google.com/document/d/${idDocumento}`;
         planilha.getRange(linha, colunaAbrirDocumento).setFormula(`=HYPERLINK("${url}"; "Abrir")`);
       }
-    } catch (erro) {  
-      erro.funcao = `preencherColunaAbrirDocumento / ${erro.funcao || ""}`; 
-      erro.dadosAdicionais ={contexto:`ID Documento ${idDocumento}`};
+    } catch (erro) {
+      erro.funcao = `preencherColunaAbrirDocumento / ${erro.funcao || ""}`;
+      erro.dadosAdicionais = { contexto: `ID Documento ${idDocumento}` };
       throw erro;
     }
   }
 
   function processarLinhaDaPlanilha(cabecalhoColunas, valoresDaLinha, nome) {
-    try {    
-     const modeloDeDocumento = DriveApp.getFileById(CONFIG.ID_DOCUMENTO_MODELO);
+    try {
+      const modeloDeDocumento = DriveApp.getFileById(CONFIG.ID_DOCUMENTO_MODELO);
       if (!modeloDeDocumento) throw new Error(`ID do documento não informado!`);
 
-      let {idPasta : pastaRaiz, mensagemPasta} = validarIdPasta(CONFIG.ID_PASTA_RAIZ);
-      if(!pastaRaiz){
+      let pastaRaiz = CONFIG.ID_PASTA_RAIZ;
+      try {
+        validarPasta(pastaRaiz);
+      } catch (e) {
         const ui = SpreadsheetApp.getUi();
         const resposta = ui.alert(
           mensagemPasta,
@@ -75,15 +81,15 @@ const DocumentoProcessor = (() => {
 
       substituirVariaveisNoDocumento(idDocumento, cabecalhoColunas, valoresDaLinha.map(String));
       return idDocumento;
-    } catch (erro) {  
-      erro.funcao = `processarLinhaDaPlanilha / ${erro.funcao || ""}`; 
+    } catch (erro) {
+      erro.funcao = `processarLinhaDaPlanilha / ${erro.funcao || ""}`;
       throw erro;
     }
   }
 
   function substituirVariaveisNoDocumento(idDoDocumento, cabecalhoColunas, valoresDaLinha) {
     try {
-      const mapeamentoVariaveis = CONFIG.MAPEAMENTO_VARIAVEIS; // 
+      const mapeamentoVariaveis = carregarMapeamento(); // 
       if (!mapeamentoVariaveis || Object.keys(mapeamentoVariaveis).length === 0) {
         throw new Error("O mapeamento de variáveis não foi configurado. Configure as variáveis antes de continuar.");
       }
@@ -133,7 +139,7 @@ const DocumentoProcessor = (() => {
           } else {
             elementoTexto.deleteText(inicio, fim);
             elementoTexto.insertText(inicio, valorDaVariavel);
-            aplicarFormatacao(elementoTexto, inicio, inicio + valorDaVariavel.length - 1, estilo,valorDaVariavel);
+            aplicarFormatacao(elementoTexto, inicio, inicio + valorDaVariavel.length - 1, estilo, valorDaVariavel);
           }
 
           elementoEncontrado = corpoDoDocumento.findText(padrao, elementoEncontrado);
@@ -143,8 +149,8 @@ const DocumentoProcessor = (() => {
       documento.saveAndClose();
     } catch (erro) {
       erro.funcao = `substituirVariaveisNoDocumento / ${erro.funcao || ""}`;
-      const mapeamentoVariaveis = CONFIG.MAPEAMENTO_VARIAVEIS; // 
-      
+      const mapeamentoVariaveis = carregarMapeamento(); // 
+
       if (typeof mapeamentoVariaveis === "object") {
         Object.keys(mapeamentoVariaveis).forEach(nomeDaVariavel => {
           let colunaAssociada = mapeamentoVariaveis[nomeDaVariavel]?.coluna;
@@ -182,7 +188,7 @@ const DocumentoProcessor = (() => {
         }
       }
 
-      enviarDocumentoPorEmail(email, idDocumento, nome);
+      enviarDocumentoPorEmail(email, planilha, linha, idDocumento);
       atualizarCheckbox(linha, colunaEmailEnviado, planilha);
     } catch (erro) {
       erro.funcao = `enviarEmail / ${erro.funcao || ""}`;
@@ -191,21 +197,22 @@ const DocumentoProcessor = (() => {
     }
   }
 
-  function enviarDocumentoPorEmail(emailDestino, idDocumento, assunto="") {
+  function enviarDocumentoPorEmail(emailDestino, planilha, linha, idDocumento) {
     try {
       if (!emailDestino || !idDocumento) {
         throw new Error("Parâmetros inválidos: Email ou ID do documento ausente.");
       }
+      let valoresDaLinha = planilha.getRange(linha, 1, 1, planilha.getLastColumn()).getValues()[0];
       const documentoUrl = `https://docs.google.com/document/d/${idDocumento}`;
-      const mensagem = substituirVariaveisMensagem(CONFIG.MENSAGEM_EMAIL.replace("{{link do documento}}", documentoUrl));
+      const mensagem = CONFIG.MENSAGEM_EMAIL.replace("{{link do documento}}", documentoUrl);
+      const mensagemEmail = substituirVariaveisMensagem(mensagem, planilha, valoresDaLinha);
+      //if (assunto) {
+      //  assunto = substituirVariaveisMensagem(assunto,planilha,valoresDaLinha);
+      //} else
+      assunto = `Documento criado: ${CONFIG.VARIAVEL_NOME ? CONFIG.VARIAVEL_NOME : SpreadsheetApp.getActiveSpreadsheet().getName()}`;
 
-      if(assunto){
-        assunto = substituirVariaveisMensagem(assunto);
-      }else
-        assunto = `Documento criado: ${CONFIG.VARIAVEL_NOME?CONFIG.VARIAVEL_NOME: SpreadsheetApp.getActiveSpreadsheet().getName()}`;
-      
       // Envia o e-mail
-      GmailApp.sendEmail(emailDestino, assunto, mensagem);
+      GmailApp.sendEmail(emailDestino, assunto, mensagemEmail);
     } catch (erro) {
       erro.funcao = `enviarDocumentoPorEmail / ${erro.funcao || ""}`;
       erro.dadosAdicionais = {
@@ -223,13 +230,13 @@ const DocumentoProcessor = (() => {
       if (paragrafo && paragrafo.getType() === DocumentApp.ElementType.PARAGRAPH) {
         paragrafo.removeFromParent();
       }
-    } catch (erro) {  
-      erro.funcao = `deletarParagrafo / ${erro.funcao || ""}`; 
+    } catch (erro) {
+      erro.funcao = `deletarParagrafo / ${erro.funcao || ""}`;
       erro.dadosAdicionais = marcadorTexto;
       throw erro;
     }
   }
-  
+
   function localizarColuna(cabecalho, nomeColuna, obrigatorio = false) {
     const index = cabecalho.indexOf(nomeColuna);
     if (index === -1) {
@@ -238,5 +245,5 @@ const DocumentoProcessor = (() => {
     }
     return index + 1;
   }
-  return {criarDocumentosParaLinha};
+  return { criarDocumentosParaLinha };
 })();

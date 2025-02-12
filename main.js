@@ -47,15 +47,21 @@ function gerarMenu(){
     .addSubMenu(subMenuConfig)
     .addItem('Como utilizar este Script', 'abrirDocumentacao')
     .addItem('Teste', 'teste')
+    .addItem('Reset', 'resetarConfiguracoes')
     .addToUi();
 }
 
 function abrirMapeamento() {
+  if(!CONFIG.ID_DOCUMENTO_MODELO){
+    alert("Realize as configurações do programa primeiro.");
+    abrirConfiguracoesGerais();
+    return;
+  }
   new mapeamentoVariavel().abrirModalMapeamento();
 }
 
 function abrirDocumentacao(){
-  Logger.log("Função abrirModalMensagemEmail iniciada.");
+  Logger.log("Função abrirDocumentacao iniciada.");
   let url="https://docs.google.com/document/d/1ru6JAJBQ584tWgTJirpfPNEt3BNf2WhIbgGgxsQ7Lyw/edit?tab=t.0";
   var html=HtmlService.createHtmlOutput(`<html><script>function openLink() {var url = "${url}";var newWindow = window.open(url, "_blank");if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {document.getElementById("message").innerText = "O redirecionamento foi bloqueado. Clique no link abaixo para abrir manualmente.";} else {google.script.host.close();}}window.onload = openLink;</script><body style="word-break:break-word;font-family:sans-serif;"><p id="message">Redirecionando...</p><p><a href="${url}" target="_blank">Clique aqui para abrir.</a></p></body><script>google.script.host.setHeight(100);google.script.host.setWidth(410);</script></html>`).setWidth(410).setHeight(100);SpreadsheetApp.getUi().showModalDialog(html,"Abrir Documentação");
   Logger.log("Função abrirModalMensagemEmail concluída com sucesso.");}
