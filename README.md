@@ -66,8 +66,8 @@ clasp open
 - A ferramenta substituirá automaticamente as variáveis e criará os documentos.
 ### 4️. Enviar por E-mail (Opcional)
 - Configure os destinatários e personalize as mensagens.
-📌 Passo a passo detalhado na documentação:
-👉 Acesse a Documentação
+- 📌 Passo a passo detalhado na documentação:
+- 👉 Acesse a Documentação
 
 ### 💙 Apoie o Projeto!
 O LeoDocs é 100% gratuito e sem fins comerciais! Se a ferramenta foi útil para você, considere apoiar:
